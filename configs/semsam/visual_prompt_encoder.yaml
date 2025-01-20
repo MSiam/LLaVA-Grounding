@@ -30,7 +30,7 @@ MODEL:
   BACKGROUND: False
   WEIGHTS: None
   LLAMA:
-    model_name_or_path: '/comp_robot/liushilong/data/LLAVA/LLAVA_7b'
+    model_name_or_path: '4bit/llava-v1.5-7b'
     cache_dir: None
     model_max_length: 2048
     hidden_size: 4096

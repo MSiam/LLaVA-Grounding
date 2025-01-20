@@ -29,8 +29,8 @@ def load_jsonl_file(path_jsonl):
 def save_jsonl_file(data, path_save):
     import jsonlines
     with jsonlines.open(path_save, "w") as writer:
-        for item in data: 
-            writer.write(item) 
+        for item in data:
+            writer.write(item)
 def load_benchmark(image_root, path_benchmark):
 
     data = load_jsonl_file(path_benchmark)
@@ -42,11 +42,11 @@ def load_benchmark(image_root, path_benchmark):
         # conv = d["conversations"]
         conv = [
         {
-            "from": "human", 
+            "from": "human",
             "value": d["text"]
         },
         {
-            "from": "gpt", 
+            "from": "gpt",
             "value": "Placeholder."
         }
         ]
@@ -148,8 +148,8 @@ def preprocess_v1(
 
 
 class Evaluator_MM:
-    def __init__(self, 
-                 model_path, 
+    def __init__(self,
+                 model_path,
                  path_vision_model_cfg=None):
         model_paths = model_path.split("/")
         if model_paths[-1].startswith('checkpoint-'):
@@ -172,7 +172,7 @@ class Evaluator_MM:
 
         conversation_lib.default_conversation = conversation_lib.conv_templates["v1"]
         self.data_mapper  = LLAVAInstanceNewBaselineDatasetMapper(self.cfg_vision_model, False, tokenizer=self.tokenizer, image_processor=self.image_processor, preprocess=preprocess_v1)
-    
+
     def construct_model(self, model_path, model_base=None, model_name=None, load_8bit=False, load_4bit=False, device_map="auto"):
         import os
         import shutil
@@ -380,14 +380,20 @@ class Evaluator_MM:
         self.model.seg_model.model = self.model.seg_model.model.to(self.model.device)
         # print("Configuring for Dataset Mapper ...")
         self.cfg_vision_model = get_config_from_name(self.cfg_vision_model)
-    
+
     def load_parameters(self, path_model):
         print("Loading Whole Model ...")
         loaded_dict = dict()
+        if not os.path.exists(path_model):
+            paths = path_model.split('/')
+            path_model = os.path.join('~/.cache/huggingface/hub/', 'models--'+paths[0]+'--'+paths[1], 'snapshots')
+            path_model = os.path.expanduser(path_model)
+            dirs = os.listdir(path_model)
+            path_model = os.path.join(path_model, dirs[0])
         for model_file in os.listdir(path_model):
             if model_file.endswith('.bin') and model_file.startswith('pytorch_model'):
                 loaded_dict.update(torch.load(os.path.join(path_model, model_file), map_location='cpu'))
-        self.model.load_state_dict(loaded_dict, strict=True)
+        self.model.load_state_dict(loaded_dict, strict=False)
     @torch.inference_mode()
     def evaluate_sample(self, input_data, get_box=True, get_mask=False):
         text, boxes, masks = self.model.forward_eval(input_data)
@@ -396,7 +402,7 @@ class Evaluator_MM:
             returns.append(boxes)
         if get_mask:
             returns.append(masks)
-        
+
         return returns
 
 class Evaluator_MM_Inter(Evaluator_MM):
@@ -528,7 +534,7 @@ class Evaluator_MM_Inter(Evaluator_MM):
             context_len = 2048
 
         return tokenizer, model, image_processor, context_len
-    
+
     def construct_vision_model(self, path_vision_model_cfg):
         from detectron2.config import LazyConfig
         from llava.model.openseed import build_model
@@ -619,7 +625,7 @@ class Evaluator_MM_Inter(Evaluator_MM):
         text, boxes, masks, mask_inter = self.model.forward_eval(input_data)
 
         return text, boxes, masks, mask_inter
-    
+
 def formatting(text, boxes, question_id):
     def find_start_idxes(sentence, word):
         window_size = len(word)
@@ -649,11 +655,11 @@ def formatting(text, boxes, question_id):
     def format_sentence(splitted_sentence):
         joint_sentence = " ".join(splitted_sentence)
         return joint_sentence
-    
+
     text_pure = ""
     text_boxes = ""
     boxes_pure = []
-    
+
     number = 0
     seg_start_index = find_start_idxes(text, "<seg>")
     if len(seg_start_index) > 0:
@@ -680,15 +686,15 @@ def formatting(text, boxes, question_id):
                 text_boxes = format_sentence([text_boxes, format_sentence(subtext.split())])
         return {
             "question_id": question_id,
-            "text": text_pure, 
-            "text_boxes": text_boxes, 
+            "text": text_pure,
+            "text_boxes": text_boxes,
             "boxes": boxes_pure,
         }
     else:
         return {
             "question_id": question_id,
-            "text": text, 
-            "text_boxes": text, 
+            "text": text,
+            "text_boxes": text,
             "boxes": []
         }
 
@@ -716,7 +722,7 @@ def evaluate_(path_benchmarks, dir_image, evaluator, matching_threshold):
                 cleaned_text = re.sub(r'<g_s> \d+', '', sentence)
                 cleaned_text = re.sub(r' <g_e>', '', cleaned_text)
                 return cleaned_text
-        
+
         has_gd = True if "<seg>" in text else False
         if len(boxes_image) == 0:
             return text, boxes_image
@@ -746,7 +752,7 @@ def evaluate_(path_benchmarks, dir_image, evaluator, matching_threshold):
             else:
                 text_filtered = " ".join(extract_text(text).split())
                 boxes_image_filtered = []
-                
+
                 return text_filtered, boxes_image_filtered
     def debug(image, boxes, prefix):
         import cv2
@@ -769,7 +775,7 @@ def evaluate_(path_benchmarks, dir_image, evaluator, matching_threshold):
             box = box.tolist()
             image = cv2.rectangle(image, (box[0], box[1]), (box[2], box[3]), (0, 255, 0))
         cv2.imwrite(f"{prefix}_debug.jpg", image)
-    
+
     datas = load_benchmark(dir_image, path_benchmarks)[:20] #! use first 20 samples for debug.
     data_mapper = evaluator.data_mapper
     device = evaluator.model.device
@@ -796,7 +802,7 @@ def evaluate(args=None):
     )
     results = evaluate_(args.path_benchmark, dir_image=args.image_root, evaluator=evaluator, matching_threshold=args.matching_threshold)
     return results
-    
+
 if __name__ == "__main__":
     import argparse
     args = argparse.ArgumentParser()
